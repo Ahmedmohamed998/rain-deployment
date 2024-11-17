@@ -1,24 +1,11 @@
-import streamlit as st
+import streamlit as st 
 import pandas as pd
 import numpy as np
 import pickle
+from collections import Counter
 
-st.set_page_config(page_title="Rain Prediction", layout='wide')
-st.title('🌦️ Rain Prediction in Australia')
-
-hide_streamlit_style = """
-            <style>
-            #MainMenu {visibility: hidden;}
-            footer {visibility: hidden;}
-            header {visibility: hidden;}
-            .block-container {
-                padding-top: 1rem;
-                padding-left: 1rem;
-                padding-right: 1rem;
-            }
-            </style>
-            """
-st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+st.set_page_config(layout='wide')
+st.title('🌦️ Weather In AUS')
 
 logistic = pickle.load(open('notebook/logistic.pkl', 'rb'))
 stacking = pickle.load(open('notebook/stacking.pkl', 'rb'))
@@ -34,18 +21,11 @@ input_names = [
 ]
 
 cat_features = ['WindGustDir', 'WindDir9am', 'WindDir3pm', 'RainToday']
-col1, col2, col3 = st.columns(3)
-if "y_pred_logistic" not in st.session_state:
-    st.session_state.y_pred_logistic = []
-if "y_pred_stacking" not in st.session_state:
-    st.session_state.y_pred_stacking = []
-if "y_pred_XG" not in st.session_state:
-    st.session_state.y_pred_XG = []
 
 def user_input():
     features = {}
 
-  
+    col1, col2, col3 = st.columns(3)
 
     with col1:
         features['MinTemp'] = st.number_input('❄️Min Temperature (°C)', min_value=-10, max_value=50, value=10)
@@ -56,15 +36,21 @@ def user_input():
         features['RainToday'] = st.selectbox('🌧️Rain Today', options=['Yes', 'No'])
 
     with col2:
-        features['WindGustDir'] = st.selectbox('🌬️Wind Gust Direction', options=['E','ENE', 'ESE', 'SE', 'NE', 'SSE', 'SW', 'SSW', 'S', 'NNE', 'WSW', 'W', 'N', 'WNW', 'NW', 'NNW'])
+        features['WindGustDir'] = st.selectbox('🌬️Wind Gust Direction', 
+                                               options=['E','ENE', 'ESE', 'SE', 'NE', 'SSE', 'SW', 'SSW', 
+                                                        'S', 'NNE', 'WSW', 'W', 'N', 'WNW', 'NW', 'NNW'])
         features['WindGustSpeed'] = st.number_input('🌬️Wind Gust Speed (km/h)', min_value=0.0, max_value=150.0, value=40.0)
-        features['WindDir9am'] = st.selectbox('🌬️Wind Direction at 9am', options=['E','ENE', 'ESE', 'SE', 'NE', 'SSE', 'SW', 'SSW', 'S', 'NNE', 'WSW', 'W', 'N', 'WNW', 'NW', 'NNW'])
-        features['WindDir3pm'] = st.selectbox('🌬️Wind Direction at 3pm', options=['E','ENE', 'ESE', 'SE', 'NE', 'SSE', 'SW', 'SSW', 'S', 'NNE', 'WSW', 'W', 'N', 'WNW', 'NW', 'NNW'])
-        features['WindSpeed9am'] = st.number_input('🌬️Wind Speed at 9am (km/h)', min_value=0.0, max_value=150.0, value=10.0)
-        features['WindSpeed3pm'] = st.number_input('🌬️Wind Speed at 3pm (km/h)', min_value=0.0, max_value=150.0, value=15.0)
+        features['WindDir9am'] = st.selectbox('🌬️Wind Direction at 9am', 
+                                              options=['E','ENE', 'ESE', 'SE', 'NE', 'SSE', 'SW', 'SSW', 
+                                                       'S', 'NNE', 'WSW', 'W', 'N', 'WNW', 'NW', 'NNW'])
+        features['WindDir3pm'] = st.selectbox('🌬️Wind Direction at 3pm', 
+                                              options=['E','ENE', 'ESE', 'SE', 'NE', 'SSE', 'SW', 'SSW', 
+                                                       'S', 'NNE', 'WSW', 'W', 'N', 'WNW', 'NW', 'NNW'])
 
     with col3:
-        features['Humidity3pm'] = st.number_input('🌀Humidity at 3pm (%)', min_value=0, max_value=100, value=50)
+        features['WindSpeed9am'] = st.number_input('🌬️Wind Speed at 9am (km/h)', min_value=0.0, max_value=150.0, value=10.0)
+        features['WindSpeed3pm'] = st.number_input('🌬️Wind Speed at 3pm (km/h)', min_value=0.0, max_value=150.0, value=15.0)
+        features['Humidity3pm'] = st.number_input('🌫️Humidity at 3pm (%)', min_value=0, max_value=100, value=50)
         features['Pressure3pm'] = st.number_input('🌀Pressure at 3pm (hPa)', min_value=900, max_value=1100, value=1013)
         features['Cloud9am'] = st.number_input('☁️Cloud Cover at 9am (%)', min_value=0, max_value=100, value=50)
         features['Cloud3pm'] = st.number_input('☁️Cloud Cover at 3pm (%)', min_value=0, max_value=100, value=50)
@@ -72,6 +58,7 @@ def user_input():
     return features
 
 user_features = user_input()
+
 
 features_list = []
 for col in input_names:
@@ -83,54 +70,51 @@ for col in input_names:
         features_list.append(transformed_value.item())
     else:
         features_list.append(value)
-        
+
 features_array = np.array(features_list).reshape(1, -1)
 feature_trans = pt.transform(features_array)
 features_scaled = scaler.transform(feature_trans)
 
-def predict_and_display():
-    logistic_pred = logistic.predict(features_scaled)
-    stacking_pred = stacking.predict(features_scaled)
-    XG_pred = XG.predict(features_scaled)
+if 'y_pred' not in st.session_state:
+    st.session_state.y_pred = []
 
-    st.session_state.y_pred_logistic.append(logistic_pred[0])
-    st.session_state.y_pred_stacking.append(stacking_pred[0])
-    st.session_state.y_pred_XG.append(XG_pred[0])
+col1, col2, col3, col4 = st.columns(4)
 
-    st.write("### Individual Model Results:")
-
-    if logistic_pred == 1:
-        st.success('Logistic Regression: May Rain Tomorrow')
-    else:
-        st.error('Logistic Regression: May Not Rain Tomorrow')
-
-    if stacking_pred == 1:
-        st.success('Stacking Model: May Rain Tomorrow')
-    else:
-        st.error('Stacking Model: May Not Rain Tomorrow')
-
-    if XG_pred == 1:
-        st.success('XGBoost Model: May Rain Tomorrow')
-    else:
-        st.error('XGBoost Model: May Not Rain Tomorrow')
-
-    all_predictions = np.concatenate([
-        st.session_state.y_pred_logistic,
-        st.session_state.y_pred_stacking,
-        st.session_state.y_pred_XG
-    ])
-
-    all_predictions = np.array(all_predictions, dtype=int).flatten()
-
-    if np.any(np.isnan(all_predictions)) or np.any(np.isin(all_predictions, [-1, 2])):
-        st.error('Invalid predictions detected. Ensure the model output is valid.')
-    else:
-        majority_vote = np.bincount(all_predictions).argmax()
-        if majority_vote == 1:
-            st.success('### 🌧️Final Majority Vote: May Rain Tomorrow')
+with col1:
+    if st.button('Predict Logistic'):
+        y_pred_model_log = logistic.predict(features_scaled)[0]
+        st.session_state.y_pred.append(y_pred_model_log)
+        if y_pred_model_log == 1:
+            st.success('Logistic: May Rain Tomorrow')
         else:
-            st.error('### ☀️Final Majority Vote: May Not Rain Tomorrow')
+            st.error('Logistic: May Rain Not Tomorrow')
 
 with col2:
-    if st.button('Predict Rain'):
-        predict_and_display()
+    if st.button('Predict Stacking'):
+        y_pred_model_stacking = stacking.predict(features_scaled)[0]
+        st.session_state.y_pred.append(y_pred_model_stacking)
+        if y_pred_model_stacking == 1:
+            st.success('Stacking: May Rain Tomorrow')
+        else:
+            st.error('Stacking: May Rain Not Tomorrow')
+
+with col3:
+    if st.button('Predict XGBoost'):
+        y_pred_model_XG = XG.predict(features_scaled)[0]
+        st.session_state.y_pred.append(y_pred_model_XG)
+        if y_pred_model_XG == 1:
+            st.success('XGBoost: May Rain Tomorrow')
+        else:
+            st.error('XGBoost: May Rain Not Tomorrow')
+
+with col4:
+    if st.button('Final Voting From Models') :
+            if len(st.session_state.y_pred) == 3:
+                y_pred_final = Counter(st.session_state.y_pred)
+                if y_pred_final.most_common(1)[0][0] == 1:
+                    st.success('Final Prediction: May Rain Tomorrow')
+                else:
+                    st.error('Final Prediction: May Rain Not Tomorrow')
+                del st.session_state.y_pred
+            else:
+                st.error('Press on each model button first')
